@@ -212,28 +212,47 @@ const Employees = () => {
     localStorage.setItem('supabase_mock_employees', JSON.stringify(employees));
   }, [employees]);
 
-  // المطابقة التلقائية للمسمى الفرعي للدرجة المحددة في العنوان الأساسي
-  const autoMatchedSubTitle = useMemo(() => {
-    if (!formData.main_job_title_id || !formData.selected_grade) return null;
-    return subTitles.find(
-      (s) =>
-        s.main_title_id === formData.main_job_title_id && s.grade === formData.selected_grade
-    );
-  }, [formData.main_job_title_id, formData.selected_grade, subTitles]);
+  // قائمة المسميات الفرعية المتاحة بحسب العنوان الأساسي المختار
+  const availableSubTitles = useMemo(() => {
+    if (!formData.main_job_title_id) return subTitles;
+    const filtered = subTitles.filter((s) => s.main_title_id === formData.main_job_title_id);
+    return filtered.length > 0 ? filtered : subTitles;
+  }, [formData.main_job_title_id, subTitles]);
 
-  useEffect(() => {
-    if (autoMatchedSubTitle) {
-      setFormData((prev) => ({ ...prev, job_title_id: autoMatchedSubTitle.id }));
-    } else {
-      setFormData((prev) => ({ ...prev, job_title_id: '' }));
-    }
-  }, [autoMatchedSubTitle]);
+  // المسمى الفرعي المختار حالياً
+  const selectedSubTitle = useMemo(() => {
+    return subTitles.find((s) => s.id === formData.job_title_id) || null;
+  }, [formData.job_title_id, subTitles]);
+
+  // تغيير العنوان الأساسي وتحديث قائمة العناوين الفرعية تلقائياً
+  const handleMainTitleChange = (mainId) => {
+    const filtered = subTitles.filter((s) => s.main_title_id === mainId);
+    const firstSub = filtered.length > 0 ? filtered[0] : null;
+    setFormData((prev) => ({
+      ...prev,
+      main_job_title_id: mainId,
+      job_title_id: firstSub ? firstSub.id : '',
+      selected_grade: firstSub ? firstSub.grade : '',
+    }));
+  };
+
+  // تغيير العنوان الفرعي وتحديث الدرجة المرتبطة به تلقائياً
+  const handleSubTitleChange = (subId) => {
+    const found = subTitles.find((s) => s.id === subId);
+    setFormData((prev) => ({
+      ...prev,
+      job_title_id: subId,
+      selected_grade: found ? found.grade : '',
+      main_job_title_id: found?.main_title_id || prev.main_job_title_id,
+    }));
+  };
 
   // فتح نافذة الإضافة أو التعديل
   const handleOpenModal = (employee = null) => {
     if (employee) {
       setEditingEmployee(employee);
-      const currentGrade = employee.job_titles?.grade || 'الدرجة الخامسة';
+      const currentSub = subTitles.find((s) => s.id === employee.job_title_id);
+      const currentGrade = currentSub?.grade || employee.job_titles?.grade || '';
       setFormData({
         employee_number: employee.employee_number || '',
         full_name: employee.full_name || '',
@@ -252,17 +271,15 @@ const Employees = () => {
       setEditingEmployee(null);
       const nextNum = employees.length + 1001;
       const initialMain = mainTitles[0] ? mainTitles[0].id : '';
-      const initialGrade = 'الدرجة الخامسة';
-      const matched = subTitles.find(
-        (s) => s.main_title_id === initialMain && s.grade === initialGrade
-      );
+      const initialSubs = subTitles.filter((s) => s.main_title_id === initialMain);
+      const firstSub = initialSubs.length > 0 ? initialSubs[0] : (subTitles[0] || null);
 
       setFormData({
         employee_number: `EMP-${nextNum}`,
         full_name: '',
         main_job_title_id: initialMain,
-        selected_grade: initialGrade,
-        job_title_id: matched ? matched.id : '',
+        selected_grade: firstSub ? firstSub.grade : '',
+        job_title_id: firstSub ? firstSub.id : '',
         job_stage: 'المرحلة 1',
         hire_date: new Date().toISOString().split('T')[0],
         last_promotion_date: '',
@@ -283,14 +300,11 @@ const Employees = () => {
       return;
     }
     if (!formData.main_job_title_id) {
-      notify('يرجى اختيار العنوان الأساسي', 'error');
+      notify('يرجى اختيار العنوان الأساسي للموظف', 'error');
       return;
     }
     if (!formData.job_title_id) {
-      notify(
-        'لا يوجد مسمى فرعي معرف لهذه الدرجة في هذا العنوان الأساسي! يرجى إضافته من صفحة العناوين الوظيفية',
-        'error'
-      );
+      notify('يرجى اختيار العنوان الفرعي للموظف', 'error');
       return;
     }
     if (!formData.current_salary || Number(formData.current_salary) <= 0) {
@@ -502,8 +516,10 @@ const Employees = () => {
               <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <th className="py-4 px-4">الرقم الوظيفي</th>
                 <th className="py-4 px-5">الاسم الكامل</th>
-                <th className="py-4 px-5">العنوان الأساسي والفرعي والدرجة</th>
-                <th className="py-4 px-4">المرحلة</th>
+                <th className="py-4 px-5">العنوان الوظيفي الأساسي</th>
+                <th className="py-4 px-5">العنوان الوظيفي الفرعي</th>
+                <th className="py-4 px-4 text-center">الدرجة الوظيفية</th>
+                <th className="py-4 px-4 text-center">المرحلة</th>
                 <th className="py-4 px-4">تاريخ التعيين</th>
                 <th className="py-4 px-4">تاريخ آخر علاوة</th>
                 <th className="py-4 px-4">تاريخ آخر ترفيع</th>
@@ -515,7 +531,7 @@ const Employees = () => {
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="py-12 text-center text-slate-400">
+                  <td colSpan="12" className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                       <Users className="w-10 h-10 text-slate-300 mb-2 stroke-[1.5]" />
                       <p className="font-semibold text-slate-600">لا يوجد موظفون مطابقون لبحثك</p>
@@ -545,22 +561,37 @@ const Employees = () => {
                       </div>
                     </td>
 
-                    {/* العنوان الأساسي والمسمى الفرعي والدرجة */}
-                    <td className="py-4 px-5">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs whitespace-nowrap">
-                          <Briefcase className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          <span>{emp.main_job_titles?.name || 'عام'}</span>
-                          <span className="text-slate-400">/</span>
-                          <span className="text-emerald-800 font-semibold">
-                            {emp.job_titles?.title_name || 'بدون مسمى'}
-                          </span>
+                    {/* العنوان الوظيفي الأساسي */}
+                    <td className="py-4 px-5 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">
+                          <Briefcase className="w-3.5 h-3.5" />
                         </div>
-                        <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
-                          <Award className="w-3 h-3 text-purple-500" />
-                          <span>{emp.job_titles?.grade || 'الدرجة غير محددة'}</span>
+                        <span className="font-semibold text-slate-800 text-xs sm:text-sm">
+                          {emp.main_job_titles?.name || '-'}
                         </span>
                       </div>
+                    </td>
+
+                    {/* العنوان الوظيفي الفرعي */}
+                    <td className="py-4 px-5 whitespace-nowrap">
+                      <span className="text-xs sm:text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-lg inline-block">
+                        {emp.job_titles?.title_name || '-'}
+                      </span>
+                    </td>
+
+                    {/* الدرجة الوظيفية - عمود مستقل وبارز */}
+                    <td className="py-4 px-4 text-center whitespace-nowrap">
+                      {emp.job_titles?.grade ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                          <Award className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                          <span>{emp.job_titles.grade}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-mono text-xs px-2 py-0.5 bg-slate-50 rounded border border-slate-100">
+                          -
+                        </span>
+                      )}
                     </td>
 
                     {/* المرحلة الوظيفية */}
@@ -697,18 +728,16 @@ const Employees = () => {
                 </div>
               </div>
 
-              {/* اختيار العنوان الأساسي واختيار الدرجة الوظيفية */}
+              {/* اختيار العنوان الأساسي والعنوان الفرعي */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    العنوان الأساسي (main_job_title) <span className="text-rose-500">*</span>
+                    العنوان الوظيفي الأساسي (main_job_title) <span className="text-rose-500">*</span>
                   </label>
                   <select
                     required
                     value={formData.main_job_title_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, main_job_title_id: e.target.value })
-                    }
+                    onChange={(e) => handleMainTitleChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
                   >
                     <option value="">-- اختر العنوان الأساسي --</option>
@@ -722,46 +751,61 @@ const Employees = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    الدرجة الوظيفية (grade) <span className="text-rose-500">*</span>
+                    العنوان الوظيفي الفرعي (job_title) <span className="text-rose-500">*</span>
                   </label>
                   <select
                     required
-                    value={formData.selected_grade}
-                    onChange={(e) =>
-                      setFormData({ ...formData, selected_grade: e.target.value })
-                    }
+                    value={formData.job_title_id}
+                    onChange={(e) => handleSubTitleChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
                   >
-                    {GRADES_LIST.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
+                    <option value="">
+                      {availableSubTitles.length === 0
+                        ? '-- لا توجد مسميات فرعية لهذا العنوان --'
+                        : '-- اختر العنوان الفرعي --'}
+                    </option>
+                    {availableSubTitles.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title_name} {s.grade ? `(${s.grade})` : ''}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* حقل المسمى الفرعي الآلي المربوط بالدرجة والعنوان الأساسي */}
-              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/60">
-                <div className="flex items-center justify-between text-xs font-semibold mb-1 text-emerald-900">
+              {/* معاينة الدرجة الوظيفية التلقائية بناءً على العنوان الفرعي المختار */}
+              <div className="p-3.5 rounded-xl border border-purple-200/80 bg-purple-50/50">
+                <div className="flex items-center justify-between text-xs font-semibold mb-1 text-purple-900">
                   <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>المسمى الوظيفي الفرعي الآلي للدرجة (job_title_id):</span>
+                    <Award className="w-4 h-4 text-purple-600" />
+                    <span>معاينة الدرجة الوظيفية المعتمدة للمسمى الفرعي:</span>
                   </span>
-                  <span className="text-[11px] font-normal text-emerald-700">جلب تلقائي</span>
+                  <span className="text-[11px] font-normal text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
+                    ربط تلقائي
+                  </span>
                 </div>
 
-                {autoMatchedSubTitle ? (
-                  <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-emerald-300 text-sm font-bold text-emerald-900">
-                    <span>{autoMatchedSubTitle.title_name}</span>
-                    <span className="text-xs font-normal text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
-                      {autoMatchedSubTitle.grade}
+                {selectedSubTitle ? (
+                  <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-200 shadow-2xs mt-1.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-bold text-slate-800">
+                        {selectedSubTitle.title_name}
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300/80">
+                      <Award className="w-3.5 h-3.5 text-purple-700" />
+                      <span>{selectedSubTitle.grade || 'غير محددة'}</span>
                     </span>
                   </div>
                 ) : (
-                  <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800">
-                    لا يوجد مسمى فرعي محدد لهذه الدرجة في هذا العنوان. يرجى إضافته من صفحة العناوين
-                    الوظيفية أو اختيار درجة أخرى.
+                  <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-lg text-xs text-amber-800 mt-1.5 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>
+                      {formData.main_job_title_id && availableSubTitles.length === 0
+                        ? 'لا توجد مسميات فرعية مسجلة لهذا العنوان الأساسي. يرجى إضافتها من صفحة العناوين الوظيفية.'
+                        : 'يرجى اختيار العنوان الأساسي والفرعي لعرض الدرجة الوظيفية المعتمدة تلقائياً.'}
+                    </span>
                   </div>
                 )}
               </div>

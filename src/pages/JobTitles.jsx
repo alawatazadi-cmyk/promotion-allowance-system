@@ -16,6 +16,8 @@ import {
   ChevronUp,
   Tag,
   Hash,
+  Database,
+  Info,
 } from 'lucide-react';
 
 // قائمة الدرجات الوظيفية المعتمدة
@@ -33,7 +35,7 @@ export const GRADES_LIST = [
   'الدرجة العاشرة',
 ];
 
-// بيانات نموذجية للعناوين الأساسية
+// بيانات نموذجية معتمدة للعناوين الأساسية
 const defaultMainTitles = [
   { id: '10000000-0000-0000-0000-000000000001', name: 'صيدلي' },
   { id: '10000000-0000-0000-0000-000000000002', name: 'مهندس' },
@@ -69,6 +71,12 @@ const defaultSubTitles = [
   { id: '20000000-0000-0000-0000-000000000033', main_title_id: '10000000-0000-0000-0000-000000000004', title_name: 'مدير إدارة أقدم', grade: 'الدرجة الأولى' },
 ];
 
+// دالة التحقق من صحة معرّف UUID
+const isValidUUID = (val) => {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val.trim());
+};
+
 const JobTitles = () => {
   // 1. حالة العناوين الأساسية
   const [mainTitles, setMainTitles] = useState(() => {
@@ -82,6 +90,8 @@ const JobTitles = () => {
     return saved ? JSON.parse(saved) : defaultSubTitles;
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState(null);
 
@@ -97,40 +107,62 @@ const JobTitles = () => {
     title_name: '',
     grade: 'الدرجة الخامسة',
   });
+  const [subFormErrors, setSubFormErrors] = useState({});
 
   const notify = (message, type = 'success') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
   };
 
-  // جلب البيانات من Supabase
+  // جلب البيانات من Supabase والتأكد من توفر العناوين الأساسية
   const fetchData = async () => {
     if (!isSupabaseConfigured()) return;
+    setIsLoading(true);
 
     try {
-      // جلب العناوين الأساسية
+      // 1. جلب العناوين الأساسية
       const { data: mains, error: mainErr } = await supabase
         .from('main_job_titles')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('name');
 
-      if (!mainErr && mains && mains.length > 0) {
-        setMainTitles(mains);
-        localStorage.setItem('supabase_mock_main_titles', JSON.stringify(mains));
+      if (mainErr) throw mainErr;
+
+      let currentMains = mains || [];
+
+      // إذا كان جدول العناوين الأساسية فارغاً في Supabase، نقوم بإدراج العناوين الافتراضية فورياً
+      if (currentMains.length === 0) {
+        const { data: seededMains, error: seedErr } = await supabase
+          .from('main_job_titles')
+          .insert(defaultMainTitles)
+          .select();
+
+        if (!seedErr && seededMains && seededMains.length > 0) {
+          currentMains = seededMains;
+        }
       }
 
-      // جلب العناوين الفرعية حسب الدرجة
+      if (currentMains.length > 0) {
+        setMainTitles(currentMains);
+        localStorage.setItem('supabase_mock_main_titles', JSON.stringify(currentMains));
+      }
+
+      // 2. جلب العناوين الفرعية حسب الدرجة
       const { data: subs, error: subErr } = await supabase
         .from('job_titles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!subErr && subs && subs.length > 0) {
+      if (subErr) throw subErr;
+
+      if (subs && subs.length > 0) {
         setSubTitles(subs);
         localStorage.setItem('supabase_mock_job_titles', JSON.stringify(subs));
       }
     } catch (err) {
       console.warn('تنبيه أثناء الاتصال بـ Supabase:', err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -162,12 +194,14 @@ const JobTitles = () => {
 
   const handleSaveMainTitle = async (e) => {
     e.preventDefault();
-    if (!mainFormData.name.trim()) {
+    const trimmedName = mainFormData.name.trim();
+    if (!trimmedName) {
       notify('يرجى إدخال اسم العنوان الأساسي', 'error');
       return;
     }
 
-    const payload = { name: mainFormData.name.trim() };
+    setIsSubmitting(true);
+    const payload = { name: trimmedName };
 
     if (isSupabaseConfigured()) {
       try {
@@ -198,6 +232,8 @@ const JobTitles = () => {
         setIsMainModalOpen(false);
       } catch (err) {
         notify(`خطأ في Supabase: ${err.message}`, 'error');
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       // محلي
@@ -215,6 +251,7 @@ const JobTitles = () => {
         setMainTitles((prev) => [newMain, ...prev]);
         notify('تمت إضافة العنوان الأساسي بنجاح (محلياً)');
       }
+      setIsSubmitting(false);
       setIsMainModalOpen(false);
     }
   };
@@ -248,40 +285,100 @@ const JobTitles = () => {
   // ==========================================
   // دوال إدارة العناوين الفرعية حسب الدرجة (job_titles)
   // ==========================================
+
+  // فتح نافذة المسمى الفرعي مع تحديد العنوان الأساسي افتراضياً
   const handleOpenSubModal = (mainId = null, sub = null) => {
+    setSubFormErrors({});
+
+    // التحقق من وجود عناوين أساسية أولاً
+    if (!mainTitles || mainTitles.length === 0) {
+      notify('تنبيه: يجب إضافة عنوان وظيفي أساسي أولاً قبل إضافة مسميات فرعية للدرجات', 'error');
+      return;
+    }
+
     if (sub) {
       setEditingSubTitle(sub);
+      // التأكد من أن main_title_id للعنوان المحرر موجود فعلياً في قائمة العناوين الأساسية المتاحة
+      const isExistingMain = mainTitles.some((m) => m.id === sub.main_title_id);
       setSubFormData({
-        main_title_id: sub.main_title_id,
-        title_name: sub.title_name,
-        grade: sub.grade,
+        main_title_id: isExistingMain ? sub.main_title_id : mainTitles[0].id,
+        title_name: sub.title_name || '',
+        grade: sub.grade || 'الدرجة الخامسة',
       });
     } else {
       setEditingSubTitle(null);
+      // عند الإضافة: إذا تم تمرير mainId صالح نختاره، وإلا نختار أول عنوان أساسي تلقائياً لمنع الحقل الفارغ
+      const targetMainId =
+        mainId && mainTitles.some((m) => m.id === mainId)
+          ? mainId
+          : mainTitles[0]?.id || '';
+
       setSubFormData({
-        main_title_id: mainId || (mainTitles[0] ? mainTitles[0].id : ''),
+        main_title_id: targetMainId,
         title_name: '',
         grade: 'الدرجة الخامسة',
       });
     }
+
     setIsSubModalOpen(true);
   };
 
+  // حفظ المسمى الفرعي مع التحقق الصارم من المفتاح الأجنبي وصيغة UUID
   const handleSaveSubTitle = async (e) => {
     e.preventDefault();
-    if (!subFormData.main_title_id) {
-      notify('يرجى اختيار العنوان الأساسي التابع له', 'error');
-      return;
+    const errors = {};
+
+    const selectedMainId = subFormData.main_title_id?.trim();
+    const titleNameTrimmed = subFormData.title_name?.trim();
+    const selectedGrade = subFormData.grade;
+
+    // 1. التحقق من اختيار العنوان الأساسي
+    if (!selectedMainId) {
+      errors.main_title_id = 'يرجى اختيار العنوان الأساسي التابع له';
+    } else {
+      // 2. التحقق من وجود العنوان الأساسي فعلياً في القائمة المتاحة
+      const matchedMain = mainTitles.find((m) => m.id === selectedMainId);
+      if (!matchedMain) {
+        errors.main_title_id = 'العنوان الأساسي المختار غير موجود في قاعدة البيانات';
+      }
+      // 3. التحقق من صحة صيغة الـ UUID عند العمل مع Supabase
+      if (isSupabaseConfigured() && !isValidUUID(selectedMainId)) {
+        errors.main_title_id = 'معرّف العنوان الأساسي غير صالح (يجب أن يكون UUID نظامي)';
+      }
     }
-    if (!subFormData.title_name.trim()) {
-      notify('يرجى إدخال المسمى الوظيفي للدرجة', 'error');
+
+    // 4. التحقق من كتابة المسمى الوظيفي
+    if (!titleNameTrimmed) {
+      errors.title_name = 'يرجى إدخال المسمى الوظيفي للدرجة';
+    }
+
+    // إذا كانت هناك أخطاء في التحقق، نتوقف فوراً ونعرض التنبيه
+    if (Object.keys(errors).length > 0) {
+      setSubFormErrors(errors);
+      notify(Object.values(errors)[0], 'error');
       return;
     }
 
+    // 5. التحقق من عدم تكرار نفس الدرجة لنفس العنوان الأساسي (قيد unique_main_grade)
+    const isDuplicate = subTitles.some(
+      (s) =>
+        s.main_title_id === selectedMainId &&
+        s.grade === selectedGrade &&
+        (!editingSubTitle || s.id !== editingSubTitle.id)
+    );
+
+    if (isDuplicate) {
+      notify(`يوجد مسمى وظيفي مسجل مسبقاً لهذا العنوان في (${selectedGrade})!`, 'error');
+      return;
+    }
+
+    setSubFormErrors({});
+    setIsSubmitting(true);
+
     const payload = {
-      main_title_id: subFormData.main_title_id,
-      title_name: subFormData.title_name.trim(),
-      grade: subFormData.grade,
+      main_title_id: selectedMainId,
+      title_name: titleNameTrimmed,
+      grade: selectedGrade,
     };
 
     if (isSupabaseConfigured()) {
@@ -291,36 +388,53 @@ const JobTitles = () => {
             .from('job_titles')
             .update(payload)
             .eq('id', editingSubTitle.id);
+
           if (error) throw error;
 
           setSubTitles((prev) =>
             prev.map((s) => (s.id === editingSubTitle.id ? { ...s, ...payload } : s))
           );
-          notify('تم تعديل العنوان الفرعي بنجاح');
+          notify(`تم تعديل العنوان الفرعي "${titleNameTrimmed}" بنجاح`);
         } else {
           const { data, error } = await supabase
             .from('job_titles')
             .insert([payload])
             .select()
             .single();
+
           if (error) throw error;
 
           if (data) {
             setSubTitles((prev) => [data, ...prev]);
+          } else {
+            setSubTitles((prev) => [{ id: 'sub_' + Date.now(), ...payload }, ...prev]);
           }
-          notify('تمت إضافة العنوان الفرعي للدرجة بنجاح');
+          notify(`تمت إضافة المسمى الوظيفي "${titleNameTrimmed}" بنجاح`);
         }
         setIsSubModalOpen(false);
       } catch (err) {
-        notify(`خطأ في Supabase: ${err.message}`, 'error');
+        console.error('خطأ Supabase أثناء حفظ المسمى الفرعي:', err);
+        // معالجة واضحة لرسائل أخطاء القيود في Supabase
+        if (err.message?.includes('foreign key constraint') || err.code === '23503') {
+          notify(
+            'فشل الحفظ: العنوان الأساسي المختار غير موجود في جدول العناوين الأساسية (Foreign Key Error)! يرجى التأكد من إضافة العنوان الأساسي في Supabase أولاً.',
+            'error'
+          );
+        } else if (err.message?.includes('unique_main_grade') || err.code === '23505') {
+          notify('فشل الحفظ: تم تسجيل مسمى وظيفي مسبقاً لنفس الدرجة في هذا العنوان الأساسي!', 'error');
+        } else {
+          notify(`خطأ أثناء الحفظ في Supabase: ${err.message}`, 'error');
+        }
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
-      // محلي
+      // وضع الحفظ المحلي
       if (editingSubTitle) {
         setSubTitles((prev) =>
           prev.map((s) => (s.id === editingSubTitle.id ? { ...s, ...payload } : s))
         );
-        notify('تم تعديل العنوان الفرعي (محلياً)');
+        notify('تم تعديل العنوان الفرعي بنجاح (محلياً)');
       } else {
         const newSub = {
           id: 'sub_' + Date.now(),
@@ -330,6 +444,7 @@ const JobTitles = () => {
         setSubTitles((prev) => [newSub, ...prev]);
         notify('تمت إضافة العنوان الفرعي بنجاح (محلياً)');
       }
+      setIsSubmitting(false);
       setIsSubModalOpen(false);
     }
   };
@@ -637,9 +752,14 @@ const JobTitles = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50"
                 >
-                  {editingMainTitle ? 'حفظ التعديلات' : 'إضافة العنوان الأساسي'}
+                  {isSubmitting
+                    ? 'جاري الحفظ...'
+                    : editingMainTitle
+                    ? 'حفظ التعديلات'
+                    : 'إضافة العنوان الأساسي'}
                 </button>
               </div>
             </form>
@@ -671,6 +791,7 @@ const JobTitles = () => {
             </div>
 
             <form onSubmit={handleSaveSubTitle} className="mt-4 space-y-4">
+              {/* اختيار العنوان الأساسي مع التحقق الصارم */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   العنوان الأساسي (main_job_title) <span className="text-rose-500">*</span>
@@ -678,20 +799,42 @@ const JobTitles = () => {
                 <select
                   required
                   value={subFormData.main_title_id}
-                  onChange={(e) =>
-                    setSubFormData({ ...subFormData, main_title_id: e.target.value })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSubFormData({ ...subFormData, main_title_id: newId });
+                    if (subFormErrors.main_title_id) {
+                      setSubFormErrors((prev) => ({ ...prev, main_title_id: null }));
+                    }
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm bg-white focus:outline-hidden focus:ring-2 ${
+                    subFormErrors.main_title_id
+                      ? 'border-rose-400 focus:ring-rose-200 focus:border-rose-500'
+                      : 'border-slate-200 focus:ring-emerald-200 focus:border-emerald-500'
+                  }`}
                 >
-                  <option value="">-- اختر العنوان الأساسي --</option>
-                  {mainTitles.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
+                  {mainTitles.length === 0 ? (
+                    <option value="">-- لا توجد عناوين أساسية مضافة --</option>
+                  ) : (
+                    mainTitles.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))
+                  )}
                 </select>
+
+                {subFormErrors.main_title_id ? (
+                  <p className="text-[11px] text-rose-500 font-semibold mt-1">
+                    {subFormErrors.main_title_id}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    يتم ربط المسمى الفرعي والدرجة بالعنوان الأساسي المختار
+                  </p>
+                )}
               </div>
 
+              {/* اختيار الدرجة الوظيفية */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   الدرجة الوظيفية (grade) <span className="text-rose-500">*</span>
@@ -710,6 +853,7 @@ const JobTitles = () => {
                 </select>
               </div>
 
+              {/* المسمى الوظيفي المعتمد */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   المسمى الوظيفي المعتمد للدرجة (title_name) <span className="text-rose-500">*</span>
@@ -719,14 +863,30 @@ const JobTitles = () => {
                   required
                   placeholder="مثال: معاون صيدلي، صيدلي، مهندس أقدم..."
                   value={subFormData.title_name}
-                  onChange={(e) => setSubFormData({ ...subFormData, title_name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                  onChange={(e) => {
+                    setSubFormData({ ...subFormData, title_name: e.target.value });
+                    if (subFormErrors.title_name) {
+                      setSubFormErrors((prev) => ({ ...prev, title_name: null }));
+                    }
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 ${
+                    subFormErrors.title_name
+                      ? 'border-rose-400 focus:ring-rose-200 focus:border-rose-500'
+                      : 'border-slate-200 focus:ring-emerald-200 focus:border-emerald-500'
+                  }`}
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  هذا المسمى سيتم جلبه واختياره تلقائياً للموظف عند تحديد هذه الدرجة والعنوان الأساسي
-                </p>
+                {subFormErrors.title_name ? (
+                  <p className="text-[11px] text-rose-500 font-semibold mt-1">
+                    {subFormErrors.title_name}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    هذا المسمى سيتم جلبه واختياره تلقائياً للموظف عند ترقيته لهذه الدرجة
+                  </p>
+                )}
               </div>
 
+              {/* أزرار الإجراء */}
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -737,9 +897,14 @@ const JobTitles = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
+                  disabled={isSubmitting || mainTitles.length === 0}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50"
                 >
-                  {editingSubTitle ? 'حفظ التعديلات' : 'إضافة المسمى'}
+                  {isSubmitting
+                    ? 'جاري الحفظ...'
+                    : editingSubTitle
+                    ? 'حفظ التعديلات'
+                    : 'إضافة المسمى'}
                 </button>
               </div>
             </form>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Users, Briefcase, Award, FileCheck2, Cpu, Sparkles, Database, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Users, Briefcase, Award, FileCheck2, Cpu, Sparkles, Database, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
 import { isSupabaseConfigured } from '../supabaseClient';
 
 const Sidebar = () => {
@@ -31,6 +31,11 @@ const Sidebar = () => {
       name: 'كتب الشكر والتقدير',
       path: '/appreciation-letters',
       icon: FileCheck2,
+    },
+    {
+      name: 'الإعدادات والتعليمات',
+      path: '/settings',
+      icon: Settings,
     },
   ];
 

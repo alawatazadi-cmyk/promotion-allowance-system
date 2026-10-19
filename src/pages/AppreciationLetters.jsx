@@ -754,11 +754,20 @@ const AppreciationLetters = () => {
                 <input
                   type="text"
                   required
-                  placeholder="مثال: مكتب الوزير، الأمانة العامة لمجلس الوزراء، المدير العام"
+                  list="issuers-list"
+                  placeholder="مثال: مكتب الوزير، المدير العام، وكيل الوزارة"
                   value={formData.issuer}
                   onChange={(e) => setFormData({ ...formData, issuer: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
                 />
+                <datalist id="issuers-list">
+                  <option value="مكتب رئيس الوزراء" />
+                  <option value="مكتب الوزير" />
+                  <option value="الأمانة العامة لمجلس الوزراء" />
+                  <option value="وكيل الوزارة" />
+                  <option value="المحافظ" />
+                  <option value="المدير العام" />
+                </datalist>
               </div>
 
               {/* ملاحظات الكتاب */}

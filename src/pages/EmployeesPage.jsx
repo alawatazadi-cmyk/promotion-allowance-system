@@ -172,7 +172,8 @@ const EmployeesPage = () => {
             <thead>
               <tr className="bg-slate-50/75 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <th className="py-4 px-6">الموظف</th>
-                <th className="py-4 px-6">العنوان والدرجة الوظيفية</th>
+                <th className="py-4 px-6">العنوان الوظيفي</th>
+                <th className="py-4 px-6 text-center">الدرجة الوظيفية</th>
                 <th className="py-4 px-6">تاريخ التعيين</th>
                 <th className="py-4 px-6">الراتب الحالي</th>
                 <th className="py-4 px-6">القسم / التواصل</th>
@@ -182,7 +183,7 @@ const EmployeesPage = () => {
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-400">
+                  <td colSpan="7" className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                       <Users className="w-10 h-10 text-slate-300 mb-2 stroke-[1.5]" />
                       <p className="font-medium text-slate-600">لا توجد بيانات مطابقة لخيارات البحث</p>
@@ -213,17 +214,24 @@ const EmployeesPage = () => {
                       </div>
                     </td>
 
-                    {/* العنوان والدرجة */}
+                    {/* العنوان الوظيفي */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                        <div>
-                          <p className="font-medium text-slate-800">{emp.job_title}</p>
-                          <span className="inline-block mt-0.5 px-2 py-0.5 text-[11px] rounded-md bg-slate-100 text-slate-600 border border-slate-200/80">
-                            {emp.grade || 'غير محدد'}
-                          </span>
-                        </div>
+                        <span className="font-medium text-slate-800">{emp.job_title || '-'}</span>
                       </div>
+                    </td>
+
+                    {/* الدرجة الوظيفية - عمود مستقل */}
+                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                      {emp.grade ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                          <Award className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                          <span>{emp.grade}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-mono text-sm">-</span>
+                      )}
                     </td>
 
                     {/* تاريخ التعيين */}

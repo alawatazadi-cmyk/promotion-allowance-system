@@ -6,6 +6,7 @@ import JobTitles from './pages/JobTitles';
 import History from './pages/History';
 import AppreciationLetters from './pages/AppreciationLetters';
 import ProcessingEngine from './pages/ProcessingEngine';
+import Settings from './pages/Settings';
 import { Calendar } from 'lucide-react';
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
               <Route path="/job-titles" element={<JobTitles />} />
               <Route path="/history" element={<History />} />
               <Route path="/appreciation-letters" element={<AppreciationLetters />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

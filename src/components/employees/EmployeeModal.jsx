@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { useApp } from '../../context/AppContext';
-import { User, Briefcase, Calendar, DollarSign, Phone, Mail, Building2, FileText } from 'lucide-react';
+import { User, Briefcase, Calendar, DollarSign, Phone, Mail, Building2, FileText, Award, Sparkles } from 'lucide-react';
 
 const EmployeeModal = ({ isOpen, onClose, employee = null }) => {
   const { jobTitles, addEmployee, updateEmployee } = useApp();
@@ -151,13 +151,20 @@ const EmployeeModal = ({ isOpen, onClose, employee = null }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">الدرجة الوظيفية</label>
-            <input
-              type="text"
-              readOnly
-              value={formData.grade || 'يتم تحديده تلقائياً'}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm cursor-not-allowed"
-            />
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">الدرجة الوظيفية (معاينة آلية)</label>
+            <div className="flex items-center justify-between px-3.5 py-2 rounded-xl border border-purple-200 bg-purple-50/60 min-h-[42px]">
+              <div className="flex items-center gap-1.5 text-xs text-purple-900 font-semibold">
+                <Award className="w-4 h-4 text-purple-600" />
+                <span>الدرجة:</span>
+              </div>
+              {formData.grade ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-purple-700 border border-purple-200 shadow-2xs">
+                  {formData.grade}
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">غير محدد</span>
+              )}
+            </div>
           </div>
         </div>
 

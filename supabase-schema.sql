@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS public.letter_employees (
     CONSTRAINT unique_letter_employee UNIQUE (letter_id, employee_id)
 );
 
+-- 7. جدول إعدادات وقواعد قدَم كتب الشكر والتقدير (appreciation_settings)
+CREATE TABLE IF NOT EXISTS public.appreciation_settings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    issuer_name TEXT NOT NULL UNIQUE,
+    reduction_months INTEGER NOT NULL DEFAULT 1,
+    max_allowed_letters INTEGER DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::TEXT, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::TEXT, NOW()) NOT NULL
+);
+
 -- فهارس لتحسين سرعة الاستعلامات والبحث
 CREATE INDEX IF NOT EXISTS idx_main_job_titles_name ON public.main_job_titles(name);
 CREATE INDEX IF NOT EXISTS idx_job_titles_main_id ON public.job_titles(main_title_id);
@@ -106,6 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_history_decision_date ON public.allowances_promot
 CREATE INDEX IF NOT EXISTS idx_letters_number ON public.appreciation_letters(letter_number);
 CREATE INDEX IF NOT EXISTS idx_letter_employees_letter ON public.letter_employees(letter_id);
 CREATE INDEX IF NOT EXISTS idx_letter_employees_emp ON public.letter_employees(employee_id);
+CREATE INDEX IF NOT EXISTS idx_appreciation_settings_issuer ON public.appreciation_settings(issuer_name);
 
 -- سياسات الأمان RLS
 ALTER TABLE public.main_job_titles ENABLE ROW LEVEL SECURITY;
@@ -114,6 +125,7 @@ ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.allowances_promotions_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appreciation_letters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.letter_employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.appreciation_settings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public access on main_job_titles" ON public.main_job_titles;
 CREATE POLICY "Public access on main_job_titles" ON public.main_job_titles FOR ALL USING (true) WITH CHECK (true);
@@ -132,6 +144,9 @@ CREATE POLICY "Public access on appreciation_letters" ON public.appreciation_let
 
 DROP POLICY IF EXISTS "Public access on letter_employees" ON public.letter_employees;
 CREATE POLICY "Public access on letter_employees" ON public.letter_employees FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on appreciation_settings" ON public.appreciation_settings;
+CREATE POLICY "Public access on appreciation_settings" ON public.appreciation_settings FOR ALL USING (true) WITH CHECK (true);
 
 -- =========================================================================
 -- بيانات أولية نموذجية للمعاينة والاختبار
@@ -199,3 +214,15 @@ INSERT INTO public.letter_employees (letter_id, employee_id) VALUES
 ('66666666-6666-6666-6666-666666666661', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
 ('66666666-6666-6666-6666-666666666662', 'cccccccc-cccc-cccc-cccc-cccccccccccc')
 ON CONFLICT DO NOTHING;
+
+-- 6. إعدادات وقواعد قدَم كتب الشكر والتقدير (appreciation_settings)
+INSERT INTO public.appreciation_settings (id, issuer_name, reduction_months, max_allowed_letters) VALUES
+('50000000-0000-0000-0000-000000000001', 'مكتب رئيس الوزراء', 6, 1),
+('50000000-0000-0000-0000-000000000002', 'مكتب الوزير', 6, 1),
+('50000000-0000-0000-0000-000000000003', 'وكيل الوزارة', 3, 2),
+('50000000-0000-0000-0000-000000000004', 'المحافظ', 3, 2),
+('50000000-0000-0000-0000-000000000005', 'المدير العام', 1, 2)
+ON CONFLICT (issuer_name) DO UPDATE 
+SET reduction_months = EXCLUDED.reduction_months,
+    max_allowed_letters = EXCLUDED.max_allowed_letters,
+    updated_at = NOW();

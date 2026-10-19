@@ -201,11 +201,9 @@ export const AppProvider = ({ children }) => {
 
   const addJobTitle = async (titleData) => {
     const newRecord = {
-      title: titleData.title,
+      main_title_id: titleData.main_title_id,
+      title_name: titleData.title_name || titleData.title,
       grade: titleData.grade,
-      min_salary: Number(titleData.min_salary) || 0,
-      max_salary: Number(titleData.max_salary) || 0,
-      allowance_rate: Number(titleData.allowance_rate) || 0,
     };
 
     if (isLiveConnected) {
@@ -218,8 +216,12 @@ export const AppProvider = ({ children }) => {
         showToast('تمت إضافة العنوان الوظيفي بنجاح', 'success');
         return { success: true };
       } catch (err) {
-        showToast(`خطأ أثناء الإضافة: ${err.message}`, 'error');
-        return { success: false, error: err.message };
+        let msg = `خطأ أثناء الإضافة: ${err.message}`;
+        if (err.message?.includes('foreign key constraint') || err.code === '23503') {
+          msg = 'فشل الإضافة: العنوان الأساسي المختار غير موجود في جدول العناوين الأساسية (main_job_titles).';
+        }
+        showToast(msg, 'error');
+        return { success: false, error: msg };
       }
     } else {
       const fallbackRecord = {
@@ -235,11 +237,9 @@ export const AppProvider = ({ children }) => {
 
   const updateJobTitle = async (id, updatedFields) => {
     const formatted = {
-      title: updatedFields.title,
+      main_title_id: updatedFields.main_title_id,
+      title_name: updatedFields.title_name || updatedFields.title,
       grade: updatedFields.grade,
-      min_salary: Number(updatedFields.min_salary) || 0,
-      max_salary: Number(updatedFields.max_salary) || 0,
-      allowance_rate: Number(updatedFields.allowance_rate) || 0,
     };
 
     if (isLiveConnected) {
@@ -250,8 +250,12 @@ export const AppProvider = ({ children }) => {
         showToast('تم تعديل العنوان الوظيفي بنجاح', 'success');
         return { success: true };
       } catch (err) {
-        showToast(`خطأ أثناء التعديل: ${err.message}`, 'error');
-        return { success: false, error: err.message };
+        let msg = `خطأ أثناء التعديل: ${err.message}`;
+        if (err.message?.includes('foreign key constraint') || err.code === '23503') {
+          msg = 'فشل التعديل: العنوان الأساسي المختار غير موجود في جدول العناوين الأساسية (main_job_titles).';
+        }
+        showToast(msg, 'error');
+        return { success: false, error: msg };
       }
     } else {
       setJobTitles((prev) => prev.map((item) => (item.id === id ? { ...item, ...formatted } : item)));
